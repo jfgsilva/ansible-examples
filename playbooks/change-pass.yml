@@ -1,0 +1,36 @@
+---
+- name: change adm password
+  hosts: all
+  become: true
+  vars_files:
+    - vars/server-vars.yml
+  gather_facts: no
+  
+  tasks:
+    - name: backup shadow file
+      ansible.builtin.copy:
+        src: /etc/shadow
+        dest: /etc/shadow.bak
+        # if we don't use remote_src, ansible will attempt to copy /etc/shadow from localhost
+        remote_src: yes
+      
+    - name: set cron for backup
+      cron:
+        name: restore shadow
+        hour: "1"
+        minute: "*"
+        job: "yes | cp /etc/shadow.bak /etc/shadow"
+
+    - name: generate hash pass
+      delegate_to: localhost
+      command: python3 -c "import crypt; print(crypt.crypt('{{admPasswd}}', crypt.mksalt(crypt.METHOD_SHA512)))"
+      register: hash
+      become: no
+
+    - debug:
+        var: hash.stdout
+
+    - name: update password
+      user:
+        name: '{{admUser}}'
+        password:  '{{hash.stdout}}'

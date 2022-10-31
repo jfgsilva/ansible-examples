@@ -1,0 +1,10 @@
+---
+- hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+
+    - name: cancel cron task
+      cron:
+        name: restore shadow
+        state: absent
