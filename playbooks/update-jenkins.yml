@@ -1,0 +1,50 @@
+- name: Update jenkins to latest LTS
+  hosts: srvjenkins
+  become: true
+  vars_files:
+    - vars/server-vars.yml
+
+  tasks:
+    - name: download latest jenkins LTS war
+      ansible.builtin.get_url:
+        url: https://get.jenkins.io/war-stable/latest/jenkins.war
+        dest: /tmp/jenkins.war
+        checksum: sha256:https://get.jenkins.io/war-stable/latest/jenkins.war.sha256
+
+    - name: check that jenkins.war is on the expected directory
+      ansible.builtin.stat:
+        path: /usr/share/java/jenkins.war
+      register: jenkins_stat
+
+    - name: stop jenkins service
+      ansible.builtin.systemd:
+        # systemctl list-units --type=service | grep jenkins
+        name: jenkins.service
+        state: stopped
+      when: jenkins_stat.stat.exists
+
+    - name: copy jenkins war and back-up old
+      ansible.builtin.copy:
+        remote_src: yes
+        src: /tmp/jenkins.war
+        dest: /usr/share/java/jenkins.war
+        owner: root
+        group: root
+        mode: '0664'
+        backup: yes
+        force: yes
+      register: copy_file
+      when: jenkins_stat.stat.exists
+
+    - debug: var=copy_file
+
+    - name: start jenkins service
+      ansible.builtin.systemd:
+        # systemctl list-units --type=service | grep jenkins
+        name: jenkins.service
+        state: started
+
+    - name: rm jenkins download from /tmp
+      file:
+        path: /tmp/jenkins.war
+        state: absent
